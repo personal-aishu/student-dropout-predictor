@@ -5,7 +5,12 @@ Higher education institutions face significant challenges with student attrition
 
 This project builds and benchmarks five distinct supervised machine learning classification algorithms (**Logistic Regression**, **Decision Tree**, **K-Nearest Neighbors**, **Gaussian Naive Bayes**, and **Support Vector Machine**) to predict student academic outcomes (**Dropout**, **Enrolled**, or **Graduate**) using demographic, socio-economic, and academic data collected at enrollment and during early semesters.
 
+<<<<<<< HEAD
 ---
+=======
+## c. Github Repository Link
+(https://github.com/personal-aishu/student-dropout-predictor)
+>>>>>>> cf97f845748b78e4830a359ea4c65da6cdb54cb4
 
 ## 2. Dataset Overview
 * **Dataset Name:** Predict Students' Dropout and Academic Success
