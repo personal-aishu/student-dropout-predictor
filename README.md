@@ -10,7 +10,7 @@ The objective of this assignment is to develop an interactive machine learning p
 * **Target:** Multi-class classification with 3 categories: `Dropout`, `Enrolled`, `Graduate`.
 
 ## c. Github Repository Link
-[Insert Your GitHub Link Here]
+(https://github.com/personal-aishu/student-dropout-predictor)
 
 ## d. Models Used
 
