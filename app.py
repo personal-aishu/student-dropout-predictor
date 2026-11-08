@@ -9,12 +9,23 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 # Configure page settings
 st.set_page_config(page_title="Student Dropout Predictor", page_icon="🎓", layout="wide")
 
-# Custom UI styling
+# Custom UI styling (Fixed for Dark/Light Theme Compatibility)
 st.markdown("""
     <style>
-    .main {background-color: #f8f9fa;}
-    h1 {color: #1f77b4;}
-    .stMetric {background-color: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+    div[data-testid="stMetric"] {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        border-radius: 10px !important;
+        padding: 15px !important;
+    }
+    div[data-testid="stMetric"] label {
+        color: #94a3b8 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #38bdf8 !important;
+        font-weight: 700 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -24,18 +35,31 @@ st.markdown("Evaluate machine learning models on their ability to predict studen
 # 1. Sidebar for Data Loading & Controls
 with st.sidebar:
     st.header("⚙️ Configuration")
-    uploaded_file = st.file_uploader("Upload test_data.csv", type=["csv"])
     
-    # Auto-load logic
-    if uploaded_file is not None:
-        df_test = pd.read_csv(uploaded_file)
-        st.success("Custom file loaded successfully!")
-    elif os.path.exists("test_data.csv"):
-        df_test = pd.read_csv("test_data.csv")
-        st.info("Using default test_data.csv")
+    # Locate test_data.csv using script directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_csv_path = os.path.join(script_dir, "test_data.csv")
+    df_test = None
+
+    # Auto-load local test_data.csv if available
+    if os.path.exists(default_csv_path):
+        st.success("✅ `test_data.csv` loaded automatically")
+        df_test = pd.read_csv(default_csv_path)
+        
+        # Optional file override inside a collapsible menu
+        with st.expander("📤 Upload Custom CSV (Optional)"):
+            uploaded_file = st.file_uploader("Upload custom file", type=["csv"])
+            if uploaded_file is not None:
+                df_test = pd.read_csv(uploaded_file)
+                st.info("Using custom uploaded file.")
     else:
-        st.warning("No dataset found. Please upload test_data.csv")
-        st.stop()
+        st.warning("⚠️ `test_data.csv` not found in project folder.")
+        uploaded_file = st.file_uploader("Upload test_data.csv", type=["csv"])
+        if uploaded_file is not None:
+            df_test = pd.read_csv(uploaded_file)
+        else:
+            st.error("Run `py train_models.py` first to generate `test_data.csv`.")
+            st.stop()
 
     # Separate features and target
     if 'Target_Encoded' in df_test.columns:
@@ -51,7 +75,7 @@ def load_models():
     model_names = ["Logistic_Regression", "Decision_Tree", "KNN", "Naive_Bayes", "Support_Vector_Machine"]
     models = {}
     for name in model_names:
-        path = f"model/{name}.joblib"
+        path = os.path.join(script_dir, "model", f"{name}.joblib")
         if os.path.exists(path):
             models[name] = joblib.load(path)
     return models
@@ -62,7 +86,7 @@ if not models:
     st.stop()
 
 # 3. Create Main Tabs
-tab1, tab2, tab3 = st.tabs(["📊 Individual Model Evaluation", "🏆 Compare All Models", "🔍 Dataset Preview"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Individual Model Evaluation", "🏆 Compare All Models", "🌟 Feature Insights", "🔍 Dataset Preview"])
 
 # TAB 1: Individual Model Evaluation
 with tab1:
@@ -71,8 +95,10 @@ with tab1:
         selected_model_name = st.selectbox("Select Model to Evaluate", list(models.keys()))
     
     model = models[selected_model_name]
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test) if hasattr(model, "predict_proba") else None
+    
+    # .values added here to silence sklearn warnings
+    y_pred = model.predict(X_test.values)
+    y_prob = model.predict_proba(X_test.values) if hasattr(model, "predict_proba") else None
     
     # Calculate metrics
     acc = accuracy_score(y_test, y_pred)
@@ -115,13 +141,26 @@ with tab1:
         report_df = pd.DataFrame(report).transpose()
         st.dataframe(report_df.style.background_gradient(cmap='viridis', subset=['f1-score']))
 
+    # Download Predictions Button
+    st.markdown("---")
+    df_results = df_test.copy()
+    df_results['Predicted_Target'] = y_pred
+    csv_results = df_results.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=f"⬇️ Download {selected_model_name.replace('_', ' ')} Predictions",
+        data=csv_results,
+        file_name=f"{selected_model_name}_predictions.csv",
+        mime="text/csv"
+    )
+
 # TAB 2: Model Comparison Dashboard
 with tab2:
     st.subheader("Leaderboard: Benchmarking All Models")
     
     comparison_data = []
     for name, clf in models.items():
-        preds = clf.predict(X_test)
+        # .values added here to silence sklearn warnings
+        preds = clf.predict(X_test.values)
         comparison_data.append({
             "Model": name.replace('_', ' '),
             "Accuracy": accuracy_score(y_test, preds),
@@ -130,16 +169,35 @@ with tab2:
         })
         
     comp_df = pd.DataFrame(comparison_data).set_index("Model")
+    formatted_df = comp_df.round(4) # Clean 4-decimal formatting
     
     # Display table and chart side-by-side
     c_col1, c_col2 = st.columns([1, 2])
     with c_col1:
-        st.dataframe(comp_df.style.highlight_max(axis=0, color='lightgreen'))
+        st.dataframe(formatted_df.style.highlight_max(axis=0, color='#15803d'))
     with c_col2:
-        st.bar_chart(comp_df)
+        st.bar_chart(formatted_df, stack=False) # Unstacked bar chart for accurate visual scale
 
-# TAB 3: Dataset Preview
+# TAB 3: Feature Insights
 with tab3:
+    st.subheader("🌟 Feature Insights (Top 10 Drivers)")
+    st.markdown("Visualizing which dataset features carry the most weight in predicting student dropout.")
+    if "Decision_Tree" in models:
+        dt_model = models["Decision_Tree"]
+        if hasattr(dt_model, "feature_importances_"):
+            importances = dt_model.feature_importances_
+            feat_df = pd.DataFrame({"Feature": X_test.columns, "Importance": importances})
+            feat_df = feat_df.sort_values(by="Importance", ascending=False).head(10)
+            
+            fig_feat, ax_feat = plt.subplots(figsize=(8, 4))
+            # hue and legend=False added to silence seaborn future warnings
+            sns.barplot(x="Importance", y="Feature", data=feat_df, hue="Feature", palette="viridis", legend=False, ax=ax_feat)
+            st.pyplot(fig_feat)
+    else:
+        st.info("Decision Tree model required for feature importance mapping.")
+
+# TAB 4: Dataset Preview
+with tab4:
     st.subheader("Test Data Snapshot")
     st.write(f"Total test instances: {len(df_test)}")
     st.dataframe(df_test.head(20))
